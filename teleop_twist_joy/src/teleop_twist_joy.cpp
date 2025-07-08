@@ -58,10 +58,15 @@ struct TeleopTwistJoy::Impl
 
   bool require_enable_button;
   bool autorun_flag;
+  bool experiments_flag;
   int64_t enable_button;
   int64_t enable_turbo_button;
   int64_t enable_autorun_button;
+  int64_t enable_experiment_st_button;
+  int64_t enable_experiment_spin_button;
+  int64_t enable_experiment_turn_button;
   int64_t autorun_buffer;
+  int64_t experiments_buffer;
 
   std::map<std::string, int64_t> axis_linear_map;
   std::map<std::string, std::map<std::string, double>> scale_linear_map;
@@ -95,6 +100,11 @@ TeleopTwistJoy::TeleopTwistJoy(const rclcpp::NodeOptions& options) : Node("teleo
   pimpl_->enable_turbo_button = this->declare_parameter("enable_turbo_button", -1);
 
   pimpl_->enable_autorun_button = this->declare_parameter("enable_autorun_button", -1);
+
+  //! for YAZAWA's Experiments
+  pimpl_->enable_experiment_st_button = this->declare_parameter("enable_experiment_st_button", -1);
+  pimpl_->enable_experiment_spin_button = this->declare_parameter("enable_experiment_spin_button", -1);
+  pimpl_->enable_experiment_turn_button = this->declare_parameter("enable_experiment_turn_button", -1);
 
   pimpl_->autorun_buffer = 0;
 
@@ -172,6 +182,33 @@ TeleopTwistJoy::TeleopTwistJoy(const rclcpp::NodeOptions& options) : Node("teleo
   this->declare_parameters("scale_angular_autorun", default_scale_angular_autorun_map);
   this->get_parameters("scale_angular_autorun", pimpl_->scale_angular_map["autorun"]);
 
+  ////////// for YAZAWA's Experiment //////////
+  std::map<std::string, double> zeros_scale_linear_map{
+      {"x", 0.0},
+      {"y", 0.0},
+      {"z", 0.0},
+  };
+  std::map<std::string, double> zeros_scale_angular_map{
+      {"yaw", 0.0},
+      {"pitch", 0.0},
+      {"roll", 0.0},
+  };
+    //直進
+  this->declare_parameters("scale_linear_experiment_st_high", default_scale_linear_turbo_map);
+  this->declare_parameters("scale_angular_experiment_st.high", zeros_scale_angular_map);
+  this->declare_parameters("scale_linear_experiment_st.low", default_scale_linear_normal_map);
+  this->declare_parameters("scale_angular_experiment_st.low", zeros_scale_angular_map);
+    // 超信地旋回
+  this->declare_parameters("scale_linear_experiment_spin.high", zeros_scale_linear_map);
+  this->declare_parameters("scale_angular_experiment_spin.high", default_scale_angular_turbo_map);
+  this->declare_parameters("scale_linear_experiment_spin.low", zeros_scale_linear_map);
+  this->declare_parameters("scale_angular_experiment_spin.low", default_scale_angular_normal_map);
+    // 旋回
+  this->declare_parameters("scale_linear_experiment_turn.high", default_scale_linear_turbo_map);
+  this->declare_parameters("scale_angular_experiment_turn.high", default_scale_angular_turbo_map);
+  this->declare_parameters("scale_linear_experiment_turn.low", default_scale_linear_normal_map);
+  this->declare_parameters("scale_angular_experiment_turn.low", default_scale_angular_normal_map);
+
   ROS_INFO_COND_NAMED(pimpl_->require_enable_button, "TeleopTwistJoy",
       "Teleop enable button %" PRId64 ".", pimpl_->enable_button);
   ROS_INFO_COND_NAMED(pimpl_->enable_turbo_button >= 0, "TeleopTwistJoy",
@@ -205,13 +242,30 @@ TeleopTwistJoy::TeleopTwistJoy(const rclcpp::NodeOptions& options) : Node("teleo
     static std::set<std::string> intparams = {"axis_linear.x", "axis_linear.y", "axis_linear.z",
                                               "axis_angular.yaw", "axis_angular.pitch", "axis_angular.roll",
                                               "axis_angular_adjustment.yaw", "axis_angular_adjustment.pitch", "axis_angular_adjustment.roll",
-                                              "enable_button", "enable_turbo_button", "enable_autorun_button"};
+                                              "enable_button", "enable_turbo_button", "enable_autorun_button",
+                                              "enable_experiment_st_high_button", "enable_experiment_st_low_button",
+                                              "enable_experiment_spin_high_button", "enable_experiment_spin_low_button",
+                                              "enable_experiment_turn_high_button", "enable_experiment_turn_low_button"
+    };
     static std::set<std::string> doubleparams = {"scale_linear.x", "scale_linear.y", "scale_linear.z",
                                                  "scale_linear_turbo.x", "scale_linear_turbo.y", "scale_linear_turbo.z",
                                                  "scale_linear_autorun.x", "scale_linear_autorun.y", "scale_linear_autorun.z",
                                                  "scale_angular.yaw", "scale_angular.pitch", "scale_angular.roll",
                                                  "scale_angular_turbo.yaw", "scale_angular_turbo.pitch", "scale_angular_turbo.roll",
-                                                 "scale_angular_autorun.yaw", "scale_angular_autorun.pitch", "scale_angular_autorun.roll"};
+                                                 "scale_angular_autorun.yaw", "scale_angular_autorun.pitch", "scale_angular_autorun.roll",
+                                                 "scale_linear_experiment_st_high.x", "scale_linear_experiment_st_high.y", "scale_linear_experiment_st_high.z",
+                                                 "scale_angular_experiment_st_high.x", "scale_angular_experiment_st_high.y", "scale_angular_experiment_st_high.z",
+                                                 "scale_linear_experiment_st_low.x", "scale_linear_experiment_st_low.y", "scale_linear_experiment_st_low.z",
+                                                 "scale_angular_experiment_st_low.x", "scale_angular_experiment_st_low.y", "scale_angular_experiment_st_low.z",
+                                                 "scale_linear_experiment_spin_high.x", "scale_linear_experiment_spin_high.y", "scale_linear_experiment_spin_high.z",
+                                                 "scale_angular_experiment_spin_high.x", "scale_angular_experiment_spin_high.y", "scale_angular_experiment_spin_high.z",
+                                                 "scale_linear_experiment_spin_low.x", "scale_linear_experiment_spin_low.y", "scale_linear_experiment_spin_low.z",
+                                                 "scale_angular_experiment_spin_low.x", "scale_angular_experiment_spin_low.y", "scale_angular_experiment_spin_low.z",
+                                                 "scale_linear_experiment_turn_high.x", "scale_linear_experiment_turn_high.y", "scale_linear_experiment_turn_high.z",
+                                                 "scale_angular_experiment_turn_high.x", "scale_angular_experiment_turn_high.y", "scale_angular_experiment_turn_high.z",
+                                                 "scale_linear_experiment_turn_low.x", "scale_linear_experiment_turn_low.y", "scale_linear_experiment_turn_low.z",
+                                                 "scale_angular_experiment_turn_low.x", "scale_angular_experiment_turn_low.y", "scale_angular_experiment_turn_low.z"
+    };
     static std::set<std::string> boolparams = {"require_enable_button"};
     auto result = rcl_interfaces::msg::SetParametersResult();
     result.successful = true;
@@ -378,6 +432,157 @@ TeleopTwistJoy::TeleopTwistJoy(const rclcpp::NodeOptions& options) : Node("teleo
       {
         this->pimpl_->scale_angular_map["normal"]["roll"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
       }
+      ////////// for YAZAWA's Experiment //////////
+      // 直進高速
+      else if (parameter.get_name() == "scale_linear_experiment_st_high.x")
+      {
+        this->pimpl_->scale_linear_map["experiment_st_high"]["x"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_st_high.y")
+      {
+        this->pimpl_->scale_linear_map["experiment_st_high"]["y"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_st_high.z")
+      {
+        this->pimpl_->scale_linear_map["experiment_st_high"]["z"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_st_high.yaw")
+      {
+        this->pimpl_->scale_angular_map["experiment_st_high"]["yaw"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_st_high.pitch")
+      {
+        this->pimpl_->scale_angular_map["experiment_st_high"]["pitch"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_st_high.roll")
+      {
+        this->pimpl_->scale_angular_map["experiment_st_high"]["roll"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      // 直進低速
+      else if (parameter.get_name() == "scale_linear_experiment_st_low.x")
+      {
+        this->pimpl_->scale_linear_map["experiment_st_low"]["x"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_st_low.y")
+      {
+        this->pimpl_->scale_linear_map["experiment_st_low"]["y"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_st_low.z")
+      {
+        this->pimpl_->scale_linear_map["experiment_st_low"]["z"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_st_low.yaw")
+      {
+        this->pimpl_->scale_angular_map["experiment_st_low"]["yaw"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_st_low.pitch")
+      {
+        this->pimpl_->scale_angular_map["experiment_st_low"]["pitch"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_st_low.roll")
+      {
+        this->pimpl_->scale_angular_map["experiment_st_low"]["roll"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      // 超信地旋回高速
+      else if (parameter.get_name() == "scale_linear_experiment_spin_high.x")
+      {
+        this->pimpl_->scale_linear_map["experiment_spin_high"]["x"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_spin_high.y")
+      {
+        this->pimpl_->scale_linear_map["experiment_spin_high"]["y"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_spin_high.z")
+      {
+        this->pimpl_->scale_linear_map["experiment_spin_high"]["z"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_spin_high.yaw")
+      {
+        this->pimpl_->scale_angular_map["experiment_spin_high"]["yaw"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_spin_high.pitch")
+      {
+        this->pimpl_->scale_angular_map["experiment_spin_high"]["pitch"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_spin_high.roll")
+      {
+        this->pimpl_->scale_angular_map["experiment_spin_high"]["roll"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      // 超信地旋回低速
+      else if (parameter.get_name() == "scale_linear_experiment_spin_low.x")
+      {
+        this->pimpl_->scale_linear_map["experiment_spin_low"]["x"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_spin_low.y")
+      {
+        this->pimpl_->scale_linear_map["experiment_spin_low"]["y"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_spin_low.z")
+      {
+        this->pimpl_->scale_linear_map["experiment_spin_low"]["z"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_spin_low.yaw")
+      {
+        this->pimpl_->scale_angular_map["experiment_spin_low"]["yaw"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_spin_low.pitch")
+      {
+        this->pimpl_->scale_angular_map["experiment_spin_low"]["pitch"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_spin_low.roll")
+      {
+        this->pimpl_->scale_angular_map["experiment_spin_low"]["roll"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      // 直進旋回高速
+      else if (parameter.get_name() == "scale_linear_experiment_turn_high.x")
+      {
+        this->pimpl_->scale_linear_map["experiment_turn_high"]["x"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_turn_high.y")
+      {
+        this->pimpl_->scale_linear_map["experiment_turn_high"]["y"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_turn_high.z")
+      {
+        this->pimpl_->scale_linear_map["experiment_turn_high"]["z"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_turn_high.yaw")
+      {
+        this->pimpl_->scale_angular_map["experiment_turn_high"]["yaw"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_turn_high.pitch")
+      {
+        this->pimpl_->scale_angular_map["experiment_turn_high"]["pitch"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_turn_high.roll")
+      {
+        this->pimpl_->scale_angular_map["experiment_turn_high"]["roll"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      // 直進旋回低速
+      else if (parameter.get_name() == "scale_linear_experiment_turn_low.x")
+      {
+        this->pimpl_->scale_linear_map["experiment_turn_low"]["x"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_turn_low.y")
+      {
+        this->pimpl_->scale_linear_map["experiment_turn_low"]["y"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_linear_experiment_turn_low.z")
+      {
+        this->pimpl_->scale_linear_map["experiment_turn_low"]["z"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_turn_low.yaw")
+      {
+        this->pimpl_->scale_angular_map["experiment_turn_low"]["yaw"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_turn_low.pitch")
+      {
+        this->pimpl_->scale_angular_map["experiment_turn_low"]["pitch"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
+      else if (parameter.get_name() == "scale_angular_experiment_turn_low.roll")
+      {
+        this->pimpl_->scale_angular_map["experiment_turn_low"]["roll"] = parameter.get_value<rclcpp::PARAMETER_DOUBLE>();
+      }
     }
     return result;
   };
@@ -413,7 +618,14 @@ void TeleopTwistJoy::Impl::sendCmdVelMsg(const sensor_msgs::msg::Joy::SharedPtr 
   float_t speed_x_temporary = getVal(joy_msg, axis_linear_map, scale_linear_map[which_map], "x");
   float_t speed_yaw_temporary = getVal(joy_msg, axis_angular_map, scale_angular_map[which_map], "yaw");
 
-  if(this->autorun_flag)
+  if(this->experiments_flag)
+  {
+      speed_x_temporary = getVal(joy_msg, axis_linear_map, scale_linear_map[which_map], "x");
+      speed_yaw_temporary = getVal(joy_msg, axis_angular_map, scale_angular_map[which_map], "yaw");
+      cmd_vel_msg->linear.x = speed_x_temporary;
+      cmd_vel_msg->angular.z = speed_yaw_temporary;
+  }
+  else if(this->autorun_flag)
   {
       // 直進方向の値を更新
       float_t limit;
@@ -464,9 +676,22 @@ void TeleopTwistJoy::Impl::joyCallback(const sensor_msgs::msg::Joy::SharedPtr jo
             this->autorun_flag = this->autorun_flag ? false : true;
         }
         this->autorun_buffer = autorun_button;
+        RCLCPP_INFO(rclcpp::get_logger("joy_callback_logger"), "B : %d, Flag : %d, sent_disable_msg : %d", joy_msg->buttons[enable_autorun_button], this->autorun_flag ? 1 : 0, sent_disable_msg ? 1 : 0);
     }
 
-    RCLCPP_INFO(rclcpp::get_logger("joy_callback_logger"), "B : %d, Flag : %d, sent_disable_msg : %d", joy_msg->buttons[enable_autorun_button], this->autorun_flag ? 1 : 0, sent_disable_msg ? 1 : 0);
+    ////////// for YAZAWA's Experiments //////////
+    bool experiments_button_assigned = ((enable_experiment_st_button >= 0 && static_cast<int>(joy_msg->buttons.size()) > enable_experiment_st_button) || (enable_experiment_spin_button >= 0 && static_cast<int>(joy_msg->buttons.size()) > enable_experiment_spin_button)) || (enable_experiment_turn_button >= 0 && static_cast<int>(joy_msg->buttons.size()) > enable_experiment_turn_button);
+    bool experiments_button_pushed = (joy_msg->buttons[enable_experiment_st_button] || joy_msg->buttons[enable_experiment_spin_button]) || joy_msg->buttons[enable_experiment_turn_button];
+    if(experiments_button_assigned)
+    {
+        auto experiments_button = experiments_button_pushed ? 1 : 0;
+        if(experiments_button - this->experiments_buffer > 0)
+        {
+            this->experiments_flag = this->experiments_flag ? false : true;
+        }
+        this->experiments_buffer = experiments_button;
+        RCLCPP_INFO(rclcpp::get_logger("joy_callback_logger"), "Experiment : %d, Flag : %d", experiments_button_pushed, this->experiments_flag ? 1 : 0);
+    }
 
     if(!autorun_flag)
     {
@@ -474,7 +699,11 @@ void TeleopTwistJoy::Impl::joyCallback(const sensor_msgs::msg::Joy::SharedPtr jo
         this->speed_x_max = 0;
     }
 
-    if(autorun_flag)
+    if(experiments_flag)
+    {
+        sendCmdVelMsg(joy_msg, "experiment");
+    }
+    else if(autorun_flag)
     {
         sendCmdVelMsg(joy_msg, "autorun");
     }
