@@ -59,6 +59,8 @@ struct TeleopTwistJoy::Impl
   bool require_enable_button;
   bool autorun_flag;
   bool experiments_flag;
+  bool ems_enable;
+  int64_t ems_button;
   int64_t enable_button;
   int64_t enable_turbo_button;
   int64_t enable_autorun_button;
@@ -102,6 +104,8 @@ TeleopTwistJoy::TeleopTwistJoy(const rclcpp::NodeOptions& options) : Node("teleo
   pimpl_->enable_autorun_button = this->declare_parameter("enable_autorun_button", -1);
 
   //! for YAZAWA's Experiments
+  pimpl_->ems_enable = false;
+  pimpl_->ems_button = this->declare_parameter("ems_button", -1);
   pimpl_->enable_experiment_st_button = this->declare_parameter("enable_experiment_st_button", -1);
   pimpl_->enable_experiment_spin_button = this->declare_parameter("enable_experiment_spin_button", -1);
   pimpl_->enable_experiment_turn_button = this->declare_parameter("enable_experiment_turn_button", -1);
@@ -195,19 +199,19 @@ TeleopTwistJoy::TeleopTwistJoy(const rclcpp::NodeOptions& options) : Node("teleo
   };
     //直進
   this->declare_parameters("scale_linear_experiment_st_high", default_scale_linear_turbo_map);
-  this->declare_parameters("scale_angular_experiment_st.high", zeros_scale_angular_map);
-  this->declare_parameters("scale_linear_experiment_st.low", default_scale_linear_normal_map);
-  this->declare_parameters("scale_angular_experiment_st.low", zeros_scale_angular_map);
+  this->declare_parameters("scale_angular_experiment_st_high", zeros_scale_angular_map);
+  this->declare_parameters("scale_linear_experiment_st_low", default_scale_linear_normal_map);
+  this->declare_parameters("scale_angular_experiment_st_low", zeros_scale_angular_map);
     // 超信地旋回
-  this->declare_parameters("scale_linear_experiment_spin.high", zeros_scale_linear_map);
-  this->declare_parameters("scale_angular_experiment_spin.high", default_scale_angular_turbo_map);
-  this->declare_parameters("scale_linear_experiment_spin.low", zeros_scale_linear_map);
-  this->declare_parameters("scale_angular_experiment_spin.low", default_scale_angular_normal_map);
+  this->declare_parameters("scale_linear_experiment_spin_high", zeros_scale_linear_map);
+  this->declare_parameters("scale_angular_experiment_spin_high", default_scale_angular_turbo_map);
+  this->declare_parameters("scale_linear_experiment_spin_low", zeros_scale_linear_map);
+  this->declare_parameters("scale_angular_experiment_spin_low", default_scale_angular_normal_map);
     // 旋回
-  this->declare_parameters("scale_linear_experiment_turn.high", default_scale_linear_turbo_map);
-  this->declare_parameters("scale_angular_experiment_turn.high", default_scale_angular_turbo_map);
-  this->declare_parameters("scale_linear_experiment_turn.low", default_scale_linear_normal_map);
-  this->declare_parameters("scale_angular_experiment_turn.low", default_scale_angular_normal_map);
+  this->declare_parameters("scale_linear_experiment_turn_high", default_scale_linear_turbo_map);
+  this->declare_parameters("scale_angular_experiment_turn_high", default_scale_angular_turbo_map);
+  this->declare_parameters("scale_linear_experiment_turn_low", default_scale_linear_normal_map);
+  this->declare_parameters("scale_angular_experiment_turn_low", default_scale_angular_normal_map);
 
   ROS_INFO_COND_NAMED(pimpl_->require_enable_button, "TeleopTwistJoy",
       "Teleop enable button %" PRId64 ".", pimpl_->enable_button);
@@ -610,6 +614,16 @@ double getVal(const sensor_msgs::msg::Joy::SharedPtr joy_msg, const std::map<std
   return joy_msg->axes[axis_map.at(fieldname)] * scale_map.at(fieldname);
 }
 
+double experimentVal(const std::map<std::string, double>& scale_map, const std::string& fieldname)
+{
+    if (scale_map.find(fieldname) == scale_map.end())
+    {
+        return 0.0;
+    }
+    RCLCPP_INFO(rclcpp::get_logger("ExperimentVal"), "Scale Map at Field Name : %f", scale_map.at(fieldname));
+    return 1.0 * scale_map.at(fieldname);
+}
+
 void TeleopTwistJoy::Impl::sendCmdVelMsg(const sensor_msgs::msg::Joy::SharedPtr joy_msg,
                                          const std::string& which_map)
 {
@@ -620,8 +634,8 @@ void TeleopTwistJoy::Impl::sendCmdVelMsg(const sensor_msgs::msg::Joy::SharedPtr 
 
   if(this->experiments_flag)
   {
-      speed_x_temporary = getVal(joy_msg, axis_linear_map, scale_linear_map[which_map], "x");
-      speed_yaw_temporary = getVal(joy_msg, axis_angular_map, scale_angular_map[which_map], "yaw");
+      speed_x_temporary = experimentVal(scale_linear_map[which_map], "x");
+      speed_x_temporary = experimentVal(scale_linear_map[which_map], "yaw");
       cmd_vel_msg->linear.x = speed_x_temporary;
       cmd_vel_msg->angular.z = speed_yaw_temporary;
   }
@@ -662,12 +676,35 @@ void TeleopTwistJoy::Impl::sendCmdVelMsg(const sensor_msgs::msg::Joy::SharedPtr 
   cmd_vel_msg->angular.y = getVal(joy_msg, axis_angular_map, scale_angular_map[which_map], "pitch");
   cmd_vel_msg->angular.x = getVal(joy_msg, axis_angular_map, scale_angular_map[which_map], "roll");
 
+  if(ems_enable)
+  {
+      cmd_vel_msg->linear.x = 0;
+      cmd_vel_msg->linear.y = 0;
+      cmd_vel_msg->linear.z = 0;
+      cmd_vel_msg->angular.x = 0;
+      cmd_vel_msg->angular.y = 0;
+      cmd_vel_msg->angular.z = 0;
+  }
+
   cmd_vel_pub->publish(std::move(cmd_vel_msg));
   sent_disable_msg = false;
 }
 
 void TeleopTwistJoy::Impl::joyCallback(const sensor_msgs::msg::Joy::SharedPtr joy_msg)
 {
+    //! 緊急停止ボタン
+    if(joy_msg->buttons[ems_button])
+    {
+        ems_enable = true;
+        autorun_flag = false;
+        experiments_flag = false;
+        return;
+    }
+    else
+    {
+        ems_enable = false;
+    }
+
     if(enable_autorun_button >= 0 && static_cast<int>(joy_msg->buttons.size()) > enable_autorun_button)
     {
         auto autorun_button = joy_msg->buttons[enable_autorun_button];
@@ -676,7 +713,6 @@ void TeleopTwistJoy::Impl::joyCallback(const sensor_msgs::msg::Joy::SharedPtr jo
             this->autorun_flag = this->autorun_flag ? false : true;
         }
         this->autorun_buffer = autorun_button;
-        RCLCPP_INFO(rclcpp::get_logger("joy_callback_logger"), "B : %d, Flag : %d, sent_disable_msg : %d", joy_msg->buttons[enable_autorun_button], this->autorun_flag ? 1 : 0, sent_disable_msg ? 1 : 0);
     }
 
     ////////// for YAZAWA's Experiments //////////
@@ -690,7 +726,7 @@ void TeleopTwistJoy::Impl::joyCallback(const sensor_msgs::msg::Joy::SharedPtr jo
             this->experiments_flag = this->experiments_flag ? false : true;
         }
         this->experiments_buffer = experiments_button;
-        RCLCPP_INFO(rclcpp::get_logger("joy_callback_logger"), "Experiment : %d, Flag : %d", experiments_button_pushed, this->experiments_flag ? 1 : 0);
+        RCLCPP_INFO(rclcpp::get_logger("joy_callback_logger"), "EMS : %d, B : %d, B-Flag : %d, Experiment : %d, Experiment-Flag : %d", ems_enable, joy_msg->buttons[enable_autorun_button], this->autorun_flag ? 1 : 0, experiments_button_pushed, this->experiments_flag ? 1 : 0);
     }
 
     if(!autorun_flag)
