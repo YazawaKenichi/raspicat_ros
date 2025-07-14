@@ -19,25 +19,15 @@ teleop_twist_joy_node:
     enable_turbo_button: 7
     enable_autorun_button: 4
 
-    enable_experiment_st_button: 3
-    enable_experiment_spin_button: 2
-    enable_experiment_turn_button: 0
-    scale_linear_experiment_st_high:
+    enable_experiment_button: 3
+    scale_linear_experiment:
       x: 0.5
-    scale_linear_experiment_st_low:
-      x: 0.1
-    scale_angular_experiment_spin_high:
+      y: 0.0
+      z: 0.0
+    scale_angular_experiment:
+      roll: 0.0
+      pitch: 0.0
       yaw: 0.4
-    scale_angular_experiment_spin_low:
-      yaw: 0.08
-    scale_linear_experiment_turn_high:
-      x: 0.5
-    scale_linear_experiment_turn_low:
-      x: 0.1
-    scale_angular_experiment_turn_high:
-      yaw: 0.4
-    scale_angular_experiment_turn_low:
-      yaw: 0.08
 
 velocity_smoother_controller_node:
   ros__parameters:
