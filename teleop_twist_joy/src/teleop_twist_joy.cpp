@@ -726,7 +726,7 @@ void TeleopTwistJoy::Impl::joyCallback(const sensor_msgs::msg::Joy::SharedPtr jo
             this->experiments_flag = this->experiments_flag ? false : true;
         }
         this->experiments_buffer = experiments_button;
-        RCLCPP_INFO(rclcpp::get_logger("joy_callback_logger"), "EMS : %d, B : %d, B-Flag : %d, Experiment : %d, Experiment-Flag : %d", ems_enable, joy_msg->buttons[enable_autorun_button], this->autorun_flag ? 1 : 0, experiments_button_pushed, this->experiments_flag ? 1 : 0);
+        RCLCPP_INFO(rclcpp::get_logger("Joy_Callback"), "EMS : %d, Experiment : %d, Experiment-Flag : %d", ems_enable, experiments_button_pushed, this->experiments_flag ? 1 : 0);
     }
 
     if(!autorun_flag)
