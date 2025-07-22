@@ -1,0 +1,70 @@
+relief_detector:
+  ros__parameters:
+    pub_rate: 1.0
+    ADC_Subscriber_Topic_Name: "/obstacle_detecting_bar/raw"
+    Normalized_Publishser_Topic_Name: "/relief_detector/bar/normalized"
+    saving_raw_data_directory: "/dev/null"
+    saving_normalized_data_directory: "/dev/null"
+
+relief_stopper:
+  ros__parameters:
+    raw_cmd_vel_topic_name: "/joy_vel"
+    processed_cmd_vel_topic_name: "/relief_vel"
+    bar_angle_topic_name: "/relief_detector/bar/normalized"
+    relief_threshold: 91.5
+    reverse: false
+    saving_raw_data_directory: "/dev/null"
+    saving_stopping_data_directory: "/dev/null"
+
+teleop_twist_joy_node:
+  ros__parameters:
+    axis_linear: 
+      x: 1
+    scale_linear:
+      x: 0.3
+    scale_linear_turbo:
+      x: 0.5
+    scale_linear_autorun:
+      x: 0.5
+    axis_angular:
+      yaw: 0
+    axis_angular_adjustment:
+      yaw: 3
+    scale_angular:
+      yaw: 0.4
+    ems_button: 5
+    enable_button: 6
+    enable_turbo_button: 7
+    enable_autorun_button: 4
+
+    enable_experiment_button: 3
+    scale_linear_experiment:
+      x: 0.5
+      y: 0.0
+      z: 0.0
+    scale_angular_experiment:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.4
+
+velocity_smoother_controller_node:
+  ros__parameters:
+      accel_decel_button: [2]
+      no_accel_decel_button: [0, 1]
+      # If you want to set both buttons
+      # accel_decel_button: [2, 0]
+      # no_accel_decel_button: [-1]
+
+velocity_smoother_node:
+  ros__parameters:
+    smoothing_frequency: 20.0
+    scale_velocities: false
+    feedback: "OPEN_LOOP"
+    max_velocity: [0.5, 0.0, 1.0]
+    min_velocity: [-0.5, 0.0, -1.0]
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
+    max_accel: [1.0, 0.0, 2.0]
+    max_decel: [-1.0, 0.0, -2.0]
+    odom_topic: "odom"
+    odom_duration: 0.1
