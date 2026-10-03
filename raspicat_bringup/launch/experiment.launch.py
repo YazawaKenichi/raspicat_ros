@@ -17,8 +17,10 @@ import os
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchContext, LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction
+from launch.actions import (DeclareLaunchArgument, ExecuteProcess, GroupAction,
+                            IncludeLaunchDescription, TimerAction)
 from launch.conditions import LaunchConfigurationEquals
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, TextSubstitution
 from launch_ros.actions import Node
 
@@ -28,8 +30,9 @@ def generate_launch_description():
         'config')
     joy_dev = LaunchConfiguration('joy_dev')
     output_vel = LaunchConfiguration('output_vel')
+    micro_ros_dev = LaunchConfiguration('micro_ros_dev')
 
-    joy = GroupAction(
+    experiment = GroupAction(
         actions=[
             DeclareLaunchArgument('config', default_value=[
                 TextSubstitution(text=os.path.join(
@@ -39,6 +42,9 @@ def generate_launch_description():
                 'joy_dev', default_value='/dev/input/js0'),
             DeclareLaunchArgument(
                 'output_vel', default_value='cmd_vel'),
+            DeclareLaunchArgument(
+                'micro_ros_dev',
+                default_value='/dev/serial/by-id/usb-Raspberry_Pi_Pico_E6609CB2D327AF2A-if00'),
 
             Node(
                 package='joy_linux',
@@ -88,11 +94,49 @@ def generate_launch_description():
                 remappings={
                     ('/cmd_vel', 'control_vel')},
             ),
+            Node(
+                package='micro_ros_agent',
+                executable='micro_ros_agent',
+                name='micro_ros_agent',
+                arguments=[
+                    'serial',
+                    '-b', '115200',
+                    '--dev', micro_ros_dev,
+                    '-v6',
+                ],
+                output='screen',
+            ),
+            ExecuteProcess(
+                cmd=[
+                    'scrcpy',
+                    '--video-source=camera',
+                    '--v4l2-sink=/dev/video10',
+                    '--camera-id=2',
+                    '--camera-size=1920x1080',
+                    '--video-bit-rate=20M',
+                    '--max-fps=30',
+                ],
+                output='screen',
+            ),
+            TimerAction(
+                period=3.0,
+                actions=[
+                    Node(
+                        package='phone_camera',
+                        executable='phone_camera_node',
+                        name='phone_camera',
+                        output='screen',
+                        parameters=[{
+                            'camera_url': '/dev/video10',
+                        }],
+                    ),
+                ],
+            ),
             ]
         )
 
     ld = LaunchDescription()
 
-    ld.add_action(joy)
+    ld.add_action(experiment)
 
     return ld

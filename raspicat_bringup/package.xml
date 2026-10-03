@@ -16,6 +16,8 @@
   <depend>urg_node</depend>
   <depend>xacro</depend>
 
+  <exec_depend>micro_ros_agent</exec_depend>
+  <exec_depend>phone_camera</exec_depend>
   <exec_depend>raspicat_description</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
