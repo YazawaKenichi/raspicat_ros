@@ -20,22 +20,16 @@ teleop_twist_joy_node:
   ros__parameters:
     axis_linear: 
       x: 1
-    scale_linear:
-      x: 0.3
-    scale_linear_turbo:
-      x: 0.5
     scale_linear_autorun:
-      x: 0.5
+      x: 1.5
     axis_angular:
       yaw: 0
     axis_angular_adjustment:
       yaw: 3
-    scale_angular:
-      yaw: 0.4
     ems_button: 5
-    enable_button: 6
-    enable_turbo_button: 7
     enable_autorun_button: 4
+    autorun_forward_button: 3
+    autorun_backward_button: 0
 
     enable_experiment_button: 3
     scale_linear_experiment:
@@ -68,4 +62,12 @@ velocity_smoother_node:
     max_decel: [-1.0, 0.0, -2.0]
     odom_topic: "odom"
     odom_duration: 0.1
+
+phone_camera:
+  ros__parameters:
+    camera_url: "/dev/v4l/by-id/usb-Generic_FULL_HD_1080P_Webcam_200901010001-video-index0"
+    width: 1280
+    height: 720
+    fps: 30.0
+    frame_id: "usb_camera"
 
