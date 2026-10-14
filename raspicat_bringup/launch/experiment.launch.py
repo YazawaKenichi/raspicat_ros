@@ -67,27 +67,19 @@ def generate_launch_description():
                     ('/cmd_vel', 'joy_vel')},
             ),
             Node(
-                package="relief_stopper",
-                executable="relief_stop",
-                name="relief_stopper",
-                parameters=[config],
-                output="screen",
-            ),
-            Node(
                 package="relief_detector",
                 executable="relief_detection",
                 name="relief_detector",
                 parameters=[config],
                 output="screen",
             ),
+            # joy_vel -> relief_vel: 停止中は smoother の入力もゼロにして再発進を滑らかにする
             Node(
-                package='raspicat',
-                executable='velocity_smoother_controller',
-                name='velocity_smoother_controller_node',
+                package="relief_stopper",
+                executable="relief_stop",
+                name="relief_stopper_pre",
                 parameters=[config],
-                remappings={
-                    ('/input_vel',  'relief_vel'),
-                    ('/output_vel', output_vel)},
+                output="screen",
             ),
             Node(
                 package='nav2_velocity_smoother',
@@ -95,7 +87,22 @@ def generate_launch_description():
                 name='velocity_smoother_node',
                 parameters=[config],
                 remappings={
-                    ('/cmd_vel', 'control_vel')},
+                    ('/cmd_vel', 'relief_vel'),
+                    ('/cmd_vel_smoothed', 'smoothed_vel')},
+            ),
+            Node(
+                package='nav2_lifecycle_manager',
+                executable='lifecycle_manager',
+                name='lifecycle_manager_velocity_smoother',
+                parameters=[config],
+            ),
+            # smoothed_vel -> output_vel: 加減速制限を介さず即時に停止させる
+            Node(
+                package="relief_stopper",
+                executable="relief_stop",
+                name="relief_stopper_post",
+                parameters=[config, {'processed_cmd_vel_topic_name': output_vel}],
+                output="screen",
             ),
             Node(
                 package='micro_ros_agent',

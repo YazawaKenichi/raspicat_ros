@@ -6,10 +6,20 @@ relief_detector:
     saving_raw_data_directory: "/dev/null"
     saving_normalized_data_directory: "/dev/null"
 
-relief_stopper:
+relief_stopper_pre:
   ros__parameters:
     raw_cmd_vel_topic_name: "/joy_vel"
     processed_cmd_vel_topic_name: "/relief_vel"
+    bar_angle_topic_name: "/relief_detector/bar/normalized"
+    relief_threshold: 91.5
+    reverse: false
+    saving_raw_data_directory: "/dev/null"
+    saving_stopping_data_directory: "/dev/null"
+
+relief_stopper_post:
+  ros__parameters:
+    raw_cmd_vel_topic_name: "/smoothed_vel"
+    processed_cmd_vel_topic_name: "/cmd_vel"  # launch 引数 output_vel で上書きされる
     bar_angle_topic_name: "/relief_detector/bar/normalized"
     relief_threshold: 91.5
     reverse: false
@@ -21,7 +31,7 @@ teleop_twist_joy_node:
     axis_linear: 
       x: 1
     scale_linear_autorun:
-      x: 1.5
+      x: 1.0
     axis_angular:
       yaw: 0
     axis_angular_adjustment:
@@ -41,21 +51,18 @@ teleop_twist_joy_node:
       pitch: 0.0
       yaw: 0.0
 
-velocity_smoother_controller_node:
+lifecycle_manager_velocity_smoother:
   ros__parameters:
-      accel_decel_button: [2]
-      no_accel_decel_button: [0, 1]
-      # If you want to set both buttons
-      # accel_decel_button: [2, 0]
-      # no_accel_decel_button: [-1]
+    autostart: true
+    node_names: ["velocity_smoother_node"]
 
 velocity_smoother_node:
   ros__parameters:
     smoothing_frequency: 20.0
     scale_velocities: false
     feedback: "OPEN_LOOP"
-    max_velocity: [0.5, 0.0, 1.0]
-    min_velocity: [-0.5, 0.0, -1.0]
+    max_velocity: [1.0, 0.0, 1.0]
+    min_velocity: [-1.0, 0.0, -1.0]
     deadband_velocity: [0.0, 0.0, 0.0]
     velocity_timeout: 1.0
     max_accel: [1.0, 0.0, 2.0]
